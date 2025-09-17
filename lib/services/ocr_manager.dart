@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'mlkit_ocr_service.dart';
 import 'tesseract_ocr_service.dart';
@@ -31,7 +30,7 @@ class OCRManager {
 
   final MLKitOCRService _mlkitService = MLKitOCRService();
   final TesseractOCRService _tesseractService = TesseractOCRService();
-  final TensorFlowLiteOCRService _tfliteService = TensorFlowLiteOCRService();
+  // final TensorFlowLiteOCRService _tfliteService = TensorFlowLiteOCRService();
 
   /// Extrait le texte avec l'engine spécifié
   Future<OCRResult> extractText(
@@ -54,8 +53,7 @@ class OCRManager {
           confidence = 0.8; // Tesseract peut varier selon l'image
           break;
         case OCREngine.tflite:
-          text = await _tfliteService.extractTextFromImage(imagePath);
-          confidence = 0.7; // Dépend du modèle entraîné
+          throw Exception('TensorFlow Lite non disponible');
           break;
       }
 
@@ -101,13 +99,13 @@ class OCRManager {
       print('Tesseract échoué: $e');
     }
 
-    // Essayer TensorFlow Lite
-    try {
-      final tfliteResult = await extractText(imagePath, engine: OCREngine.tflite);
-      results.add(tfliteResult);
-    } catch (e) {
-      print('TensorFlow Lite échoué: $e');
-    }
+    // TensorFlow Lite désactivé
+    // try {
+    //   final tfliteResult = await extractText(imagePath, engine: OCREngine.tflite);
+    //   results.add(tfliteResult);
+    // } catch (e) {
+    //   print('TensorFlow Lite échoué: $e');
+    // }
 
     if (results.isEmpty) {
       throw Exception('Tous les engines OCR ont échoué');
@@ -123,13 +121,13 @@ class OCRManager {
     return {
       OCREngine.mlkit: true, // ML Kit est toujours disponible
       OCREngine.tesseract: await _tesseractService.isAvailable(),
-      OCREngine.tflite: false, // Nécessite un modèle
+      OCREngine.tflite: false, // Désactivé
     };
   }
 
   /// Libère les ressources
   void dispose() {
     _mlkitService.dispose();
-    _tfliteService.dispose();
+    // _tfliteService.dispose();
   }
 }

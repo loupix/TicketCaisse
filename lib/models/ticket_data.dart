@@ -8,6 +8,8 @@ class TicketData {
   final double? total;
   final String? currency;
   final double? discount;
+  final String? id;
+  final DateTime? createdAt;
 
   TicketData({
     required this.rawText,
@@ -19,6 +21,8 @@ class TicketData {
     this.total,
     this.currency,
     this.discount,
+    this.id,
+    this.createdAt,
   });
 
   factory TicketData.fromRawText(String text) {
@@ -39,7 +43,27 @@ class TicketData {
       'total': total,
       'currency': currency,
       'discount': discount,
+      'id': id,
+      'createdAt': createdAt?.toIso8601String(),
     };
+  }
+
+  factory TicketData.fromJson(Map<String, dynamic> json) {
+    return TicketData(
+      rawText: json['rawText'] as String? ?? '',
+      storeName: json['storeName'] as String?,
+      date: json['date'] != null ? DateTime.tryParse(json['date'] as String) : null,
+      items: (json['items'] as List<dynamic>? ?? [])
+          .map((e) => TicketItem.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      subtotal: (json['subtotal'] as num?)?.toDouble(),
+      tax: (json['tax'] as num?)?.toDouble(),
+      total: (json['total'] as num?)?.toDouble(),
+      currency: json['currency'] as String?,
+      discount: (json['discount'] as num?)?.toDouble(),
+      id: json['id'] as String?,
+      createdAt: json['createdAt'] != null ? DateTime.tryParse(json['createdAt'] as String) : null,
+    );
   }
 }
 
@@ -63,5 +87,14 @@ class TicketItem {
       'quantity': quantity,
       'category': category,
     };
+  }
+
+  factory TicketItem.fromJson(Map<String, dynamic> json) {
+    return TicketItem(
+      name: json['name'] as String? ?? '',
+      price: (json['price'] as num?)?.toDouble() ?? 0.0,
+      quantity: (json['quantity'] as num?)?.toInt() ?? 1,
+      category: json['category'] as String?,
+    );
   }
 }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/ocr_provider.dart';
+import '../services/ocr_manager.dart';
+import '../services/export_service.dart';
 
 class TicketDetailScreen extends ConsumerWidget {
   const TicketDetailScreen({super.key});
@@ -8,7 +10,10 @@ class TicketDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final ocrState = ref.watch(ocrProvider);
-    final ticketData = ocrState.ticketData;
+    final arg = ModalRoute.of(context)?.settings.arguments;
+    final ticketData = (arg is Map && arg['ticket'] != null)
+        ? arg['ticket'] as dynamic
+        : (arg is Object ? arg : null) as dynamic ?? ocrState.ticketData;
 
     if (ticketData == null) {
       return Scaffold(
@@ -29,6 +34,38 @@ class TicketDetailScreen extends ConsumerWidget {
             },
             icon: const Icon(Icons.text_fields),
             tooltip: 'Voir le texte brut',
+          ),
+          PopupMenuButton<String>(
+            onSelected: (value) async {
+              final exporter = ExportService();
+              try {
+                if (value == 'csv') {
+                  final file = await exporter.exportTicketToCsv(ticketData);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Export CSV: ${file.path}')),
+                    );
+                  }
+                } else if (value == 'pdf') {
+                  final file = await exporter.exportTicketToPdf(ticketData);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Export PDF: ${file.path}')),
+                    );
+                  }
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Erreur export: $e')),
+                  );
+                }
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'csv', child: Text('Exporter en CSV')),
+              PopupMenuItem(value: 'pdf', child: Text('Exporter en PDF')),
+            ],
           ),
         ],
       ),

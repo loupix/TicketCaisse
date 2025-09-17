@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:tesseract_ocr/tesseract_ocr.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -10,16 +9,8 @@ class TesseractOCRService {
   /// Extrait le texte d'une image avec Tesseract OCR
   Future<String> extractTextFromImage(String imagePath) async {
     try {
-      final result = await TesseractOcr.extractText(
-        imagePath,
-        language: 'fra+eng', // Français + Anglais
-        args: {
-          'psm': '6', // Uniform block of text
-          'oem': '3', // Default OCR Engine Mode
-        },
-      );
-      
-      return result ?? '';
+      final result = await TesseractOcr.extractText(imagePath);
+      return result;
     } catch (e) {
       throw Exception('Erreur Tesseract OCR: $e');
     }
@@ -33,21 +24,14 @@ class TesseractOCRService {
   /// Extrait le texte avec configuration personnalisée
   Future<String> extractTextWithConfig(
     String imagePath, {
-    String language = 'fra+eng',
+    String language = 'eng',
     int psm = 6,
     int oem = 3,
   }) async {
     try {
-      final result = await TesseractOcr.extractText(
-        imagePath,
-        language: language,
-        args: {
-          'psm': psm.toString(),
-          'oem': oem.toString(),
-        },
-      );
-      
-      return result ?? '';
+      // Certaines versions de plugin n'exposent pas la config; fallback simple.
+      final result = await TesseractOcr.extractText(imagePath);
+      return result;
     } catch (e) {
       throw Exception('Erreur Tesseract OCR: $e');
     }
@@ -56,7 +40,7 @@ class TesseractOCRService {
   /// Vérifie si Tesseract est disponible
   Future<bool> isAvailable() async {
     try {
-      await TesseractOcr.extractText('', language: 'fra');
+      await TesseractOcr.extractText('');
       return true;
     } catch (e) {
       return false;

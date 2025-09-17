@@ -3,6 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/ocr_provider.dart';
 import '../services/ocr_manager.dart';
 import 'ticket_detail_screen.dart';
+import '../providers/saved_tickets_provider.dart';
+import 'tickets_list_screen.dart';
+import 'validation_screen.dart';
+import '../services/category_suggestion_service.dart';
+import '../models/ticket_data.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -15,6 +20,20 @@ class HomeScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Ticket Caisse OCR'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        actions: [
+          IconButton(
+            tooltip: 'Tickets sauvegardés',
+            onPressed: () {
+              // Charger avant d'ouvrir
+              ref.read(savedTicketsProvider.notifier).load();
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const TicketsListScreen()),
+              );
+            },
+            icon: const Icon(Icons.folder_open),
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -48,6 +67,28 @@ class HomeScreen extends ConsumerWidget {
                         }
                       },
                     ),
+                    
+                    // Actions sous le sélecteur
+                    if (ocrState.ticketData != null) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () async {
+                                final ticket = ocrState.ticketData!;
+                                await ref.read(savedTicketsProvider.notifier).add(ticket);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Ticket enregistré')),
+                                );
+                              },
+                              icon: const Icon(Icons.save_alt),
+                              label: const Text('Enregistrer'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -134,17 +175,48 @@ class HomeScreen extends ConsumerWidget {
                               'Résultats',
                               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                             ),
-                            TextButton(
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => const TicketDetailScreen(),
-                                  ),
-                                );
-                              },
-                              child: const Text('Voir détails'),
-                            ),
+                            Row(children: [
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const TicketDetailScreen(),
+                                    ),
+                                  );
+                                },
+                                child: const Text('Voir détails'),
+                              ),
+                              const SizedBox(width: 8),
+                              TextButton(
+                                onPressed: () async {
+                                  final sugg = CategorySuggestionService();
+                                  final suggested = sugg.applySuggestions(ocrState.ticketData!);
+                                  final result = await Navigator.push<TicketData>(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => ValidationScreen(ticket: suggested),
+                                    ),
+                                  );
+                                  if (result != null) {
+                                    // Remplacer les données OCR courantes par la version validée
+                                    // (on conserve extractedText et processingTime)
+                                    ref.read(ocrProvider.notifier).clear();
+                                    // Temporisation: afficher résultat validé dans détails
+                                    if (context.mounted) {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => const TicketDetailScreen(),
+                                          settings: RouteSettings(arguments: result),
+                                        ),
+                                      );
+                                    }
+                                  }
+                                },
+                                child: const Text('Valider'),
+                              ),
+                            ]),
                           ],
                         ),
                         const SizedBox(height: 8),

@@ -12,6 +12,7 @@ class OCRState {
   final String? error;
   final OCREngine selectedEngine;
   final Duration? processingTime;
+  final String? lastImagePath;
 
   OCRState({
     this.isLoading = false,
@@ -20,6 +21,7 @@ class OCRState {
     this.error,
     this.selectedEngine = OCREngine.mlkit,
     this.processingTime,
+    this.lastImagePath,
   });
 
   OCRState copyWith({
@@ -29,6 +31,7 @@ class OCRState {
     String? error,
     OCREngine? selectedEngine,
     Duration? processingTime,
+    String? lastImagePath,
   }) {
     return OCRState(
       isLoading: isLoading ?? this.isLoading,
@@ -37,6 +40,7 @@ class OCRState {
       error: error ?? this.error,
       selectedEngine: selectedEngine ?? this.selectedEngine,
       processingTime: processingTime ?? this.processingTime,
+      lastImagePath: lastImagePath ?? this.lastImagePath,
     );
   }
 }
@@ -59,6 +63,7 @@ class OCRNotifier extends StateNotifier<OCRState> {
       );
 
       if (image != null) {
+        state = state.copyWith(lastImagePath: image.path);
         await _processImage(image.path);
       } else {
         state = state.copyWith(isLoading: false);
@@ -82,6 +87,7 @@ class OCRNotifier extends StateNotifier<OCRState> {
       );
 
       if (image != null) {
+        state = state.copyWith(lastImagePath: image.path);
         await _processImage(image.path);
       } else {
         state = state.copyWith(isLoading: false);
@@ -109,6 +115,7 @@ class OCRNotifier extends StateNotifier<OCRState> {
         extractedText: result.text,
         ticketData: ticketData,
         processingTime: result.processingTime,
+        lastImagePath: imagePath,
       );
     } catch (e) {
       state = state.copyWith(
@@ -121,6 +128,11 @@ class OCRNotifier extends StateNotifier<OCRState> {
   /// Change l'engine OCR
   void setOCREngine(OCREngine engine) {
     state = state.copyWith(selectedEngine: engine);
+    final String? imagePath = state.lastImagePath;
+    if (imagePath != null) {
+      // Retraiter automatiquement avec le nouveau moteur
+      reprocessWithEngine(engine);
+    }
   }
 
   /// Efface les données
@@ -130,14 +142,14 @@ class OCRNotifier extends StateNotifier<OCRState> {
 
   /// Retraite l'image avec un autre engine
   Future<void> reprocessWithEngine(OCREngine engine) async {
-    if (state.extractedText == null) return;
+    final String? imagePath = state.lastImagePath;
+    if (imagePath == null) return;
 
     state = state.copyWith(isLoading: true, error: null);
     
     try {
-      // Simuler le retraitement (en réalité, il faudrait garder l'image)
       final result = await _ocrManager.extractText(
-        '', // Chemin de l'image (à implémenter)
+        imagePath,
         engine: engine,
       );
 

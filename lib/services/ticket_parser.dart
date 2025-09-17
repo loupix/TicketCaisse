@@ -1,4 +1,4 @@
-import 'dart:math';
+// import 'dart:math';
 import 'package:intl/intl.dart';
 import '../models/ticket_data.dart';
 
@@ -7,38 +7,44 @@ class TicketParser {
   factory TicketParser() => _instance;
   TicketParser._internal();
 
-  // Patterns pour détecter les prix
+  // Patterns pour détecter les prix (gère devises avant/après et séparateurs)
   static final RegExp _pricePattern = RegExp(
-    r'(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)\s*[€$£¥]?',
+    r'(?:(?:[€$£¥]\s*)?(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)\s*(?:€|\$|£|¥)?)',
     caseSensitive: false,
   );
 
   // Patterns pour détecter les totaux
   static final RegExp _totalPattern = RegExp(
-    r'(?:total|tota|tot|ttc|montant|sum|amount)\s*:?\s*(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)\s*[€$£¥]?',
+    r'(?:\btotal\b|\bttc\b|\bmontant total\b|\bmontant\b|\bsomme\b|\bsum\b|\bamount\b)\s*[:=]?\s*(?:€|\$|£|¥)?\s*(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)',
+    caseSensitive: false,
+  );
+
+  // Sous-total
+  static final RegExp _subtotalPattern = RegExp(
+    r'(?:\bsous[- ]?total\b|\bsubtotal\b|\bht\b)\s*[:=]?\s*(?:€|\$|£|¥)?\s*(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)',
     caseSensitive: false,
   );
 
   // Patterns pour détecter les remises
   static final RegExp _discountPattern = RegExp(
-    r'(?:remise|discount|reduction|rabais)\s*:?\s*(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)\s*[€$£¥]?',
+    r'(?:\bremise\b|\bréduction\b|\breduction\b|\brabais\b|\bdiscount\b)\s*[:=]?\s*(?:€|\$|£|¥)?\s*(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)',
     caseSensitive: false,
   );
 
   // Patterns pour détecter la TVA
   static final RegExp _taxPattern = RegExp(
-    r'(?:tva|tax|vat)\s*:?\s*(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)\s*[€$£¥]?',
+    r'(?:\btva\b|\btax\b|\bvat\b)\s*[:=]?\s*(?:€|\$|£|¥)?\s*(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)',
     caseSensitive: false,
   );
 
-  // Patterns pour détecter les dates
+  // Patterns pour détecter les dates (avec heure optionnelle)
   static final RegExp _datePattern = RegExp(
-    r'(\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4})',
+    r'(\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4})(?:\s+(\d{1,2}:\d{2})(?::\d{2})?)?',
   );
 
   // Patterns pour détecter les noms de magasins
   static final RegExp _storePattern = RegExp(
-    r'^([A-Z][A-Za-z\s&]+)(?:\n|$)',
+    r'^[A-ZÉÈÀÂÎÙÔÇ][A-Za-zÉÈÀÂÎÙÔÇ\s&\-]+(?:\n|$)',
     multiLine: true,
   );
 
@@ -86,6 +92,13 @@ class TicketParser {
         continue;
       }
 
+      // Détecter le sous-total
+      final subtotalMatch = _subtotalPattern.firstMatch(line);
+      if (subtotalMatch != null) {
+        subtotal = _parsePrice(subtotalMatch.group(1)!, currency);
+        continue;
+      }
+
       // Détecter les remises
       final discountMatch = _discountPattern.firstMatch(line);
       if (discountMatch != null) {
@@ -109,7 +122,7 @@ class TicketParser {
 
     // Calculer le sous-total si non trouvé
     if (subtotal == null && items.isNotEmpty) {
-      subtotal = items.fold(0.0, (sum, item) => sum + (item.price * item.quantity));
+      subtotal = items.fold(0.0, (sum, item) => (sum ?? 0.0) + (item.price * item.quantity));
     }
 
     return TicketData(
@@ -127,18 +140,19 @@ class TicketParser {
 
   /// Parse une ligne pour extraire un article
   TicketItem? _parseItemLine(String line, String? currency) {
-    final priceMatch = _pricePattern.firstMatch(line);
+    final normalizedLine = line.replaceAll(RegExp(r'[·•]+'), ' ').replaceAll(RegExp(r'\.{2,}'), ' ');
+    final priceMatch = _pricePattern.firstMatch(normalizedLine);
     if (priceMatch == null) return null;
 
     final price = _parsePrice(priceMatch.group(1)!, currency);
     if (price <= 0) return null;
 
     // Extraire le nom de l'article (tout avant le prix)
-    final name = line.substring(0, priceMatch.start).trim();
+    final name = normalizedLine.substring(0, priceMatch.start).trim();
     if (name.isEmpty) return null;
 
     // Détecter la quantité (nombre au début de la ligne)
-    final quantityMatch = RegExp(r'^(\d+)\s*[x×*]?\s*').firstMatch(name);
+    final quantityMatch = RegExp(r'^(\d+)\s*(?:x|×|\*)?\s*').firstMatch(name);
     int quantity = 1;
     String itemName = name;
     
@@ -156,21 +170,35 @@ class TicketParser {
 
   /// Parse un prix en double
   double _parsePrice(String priceStr, String? currency) {
-    // Normaliser le format (remplacer virgule par point)
-    final normalized = priceStr.replaceAll(',', '.');
-    
-    // Supprimer les espaces
-    final clean = normalized.replaceAll(' ', '');
-    
-    return double.tryParse(clean) ?? 0.0;
+    String s = priceStr.trim();
+    s = s.replaceAll(RegExp(r'[€$£¥]'), '');
+    s = s.replaceAll(' ', '');
+    final hasComma = s.contains(',');
+    final hasDot = s.contains('.');
+    if (hasComma && hasDot) {
+      final lastComma = s.lastIndexOf(',');
+      final lastDot = s.lastIndexOf('.');
+      if (lastComma > lastDot) {
+        s = s.replaceAll('.', '');
+        s = s.replaceFirst(',', '.');
+      } else {
+        s = s.replaceAll(',', '');
+      }
+    } else if (hasComma && !hasDot) {
+      s = s.replaceAll('.', '');
+      s = s.replaceAll(',', '.');
+    } else {
+      s = s.replaceAll(',', '');
+    }
+    return double.tryParse(s) ?? 0.0;
   }
 
   /// Détecte la devise utilisée
   String? _detectCurrency(String text) {
-    if (text.contains('€')) return '€';
-    if (text.contains('\$')) return '\$';
-    if (text.contains('£')) return '£';
-    if (text.contains('¥')) return '¥';
+    if (text.contains('€') || RegExp(r'\bEUR\b|\beuros?\b', caseSensitive: false).hasMatch(text)) return '€';
+    if (text.contains('\$') || RegExp(r'\bUSD\b|\bdollars?\b', caseSensitive: false).hasMatch(text)) return '\$';
+    if (text.contains('£') || RegExp(r'\bGBP\b|\bpounds?\b', caseSensitive: false).hasMatch(text)) return '£';
+    if (text.contains('¥') || RegExp(r'\bJPY\b|\byen\b', caseSensitive: false).hasMatch(text)) return '¥';
     return null;
   }
 
@@ -195,6 +223,12 @@ class TicketParser {
         'dd/MM/yy',
         'dd-MM-yy',
         'dd.MM.yy',
+        'dd/MM/yyyy HH:mm',
+        'dd-MM-yyyy HH:mm',
+        'dd.MM.yyyy HH:mm',
+        'dd/MM/yy HH:mm',
+        'dd-MM-yy HH:mm',
+        'dd.MM.yy HH:mm',
       ];
 
       for (final format in formats) {
