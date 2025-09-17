@@ -1,0 +1,15 @@
+# Cursor Rules - TicketCaisse
+
+- Terminal
+  - Ne pas activer conda automatiquement.
+  - Si nécessaire, activer manuellement l'environnement 'ticket-caisse' avec conda activate ticket-caisse.
+  - Ne pas supposer qu'un environnement est actif; exécuter les commandes directement.
+  - Interdire l'utilisation des opérateurs de pipe (|) et des chaînages conditionnels (&&) dans les commandes. Exécuter les commandes séparément.
+
+- Git
+  - Messages de commit en français, style Conventional Commits si possible.
+  - Messages courts, clairs, orientés impact.
+
+- Style de réponse
+  - Répondre en français, ton naturel et direct.
+  - Apostrophes droites seulement ('). Pas de tirets cadratins.
